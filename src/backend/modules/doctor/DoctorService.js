@@ -1,28 +1,50 @@
-// src/backend/modules/doctor/DoctorService.js
-// Business logic for doctor-related operations in Firestore.
-
-import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
 
 const COLLECTION = "doctors";
 
 /**
- * Fetch a doctor profile by user ID.
+ * Initialize a doctor record and store in 'doctors' collection.
  */
-export const getDoctorProfile = async (doctorId) => {
-  const docSnap = await getDoc(doc(db, COLLECTION, doctorId));
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() };
+export const createDoctor = async (doctorData) => {
+  try {
+    const doctorRef = doc(db, COLLECTION, doctorData.id);
+    await setDoc(doctorRef, {
+      ...doctorData,
+      userId: doctorData.id,
+      assignedPatients: [],
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating doctor:", error);
+    throw error;
+  }
 };
 
 /**
- * Fetch all patients assigned to this doctor.
+ * Fetch all registered doctors.
  */
-export const getDoctorPatients = async (doctorId) => {
-  const q = query(
-    collection(db, "patients"),
-    where("assignedDoctorId", "==", doctorId)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+export const getDoctors = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching doctors:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get a specific doctor's profile.
+ */
+export const getDoctorById = async (id) => {
+  try {
+    const docSnap = await getDoc(doc(db, COLLECTION, id));
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+  } catch (error) {
+    console.error("Error fetching doctor:", error);
+    throw error;
+  }
 };

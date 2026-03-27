@@ -9,9 +9,9 @@ import useAuth from '../../../backend/modules/auth/useAuth';
 import { 
   getPatientsByDoctor, 
   getAllPatients, 
-  getAppointmentsByRole, 
   getRecentActivities 
 } from '../../../backend/modules/patient/PatientService';
+import { subscribeToDoctorAppointments } from '../../../backend/modules/appointment/AppointmentService';
 
 const DoctorDashboard = () => {
   const { getCurrentUser } = useAuth();
@@ -25,6 +25,15 @@ const DoctorDashboard = () => {
   });
 
   useEffect(() => {
+    if (user && user.role === 'doctor') {
+      const unsubscribe = subscribeToDoctorAppointments(user.uid, (appointments) => {
+        setData(prev => ({ ...prev, appointments }));
+      });
+      return () => unsubscribe();
+    }
+  }, [user]);
+
+  useEffect(() => {
     if (user) {
       fetchDashboardData();
     }
@@ -36,8 +45,7 @@ const DoctorDashboard = () => {
       const isNurse = user.role === 'nurse';
       
       // Fetch in parallel for speed
-      const [appointments, patients, records, activities] = await Promise.all([
-        getAppointmentsByRole(user.role, user.uid),
+      const [patients, records, activities] = await Promise.all([
         isNurse ? getAllPatients() : getPatientsByDoctor(user.uid),
         getAllPatients(), // For Records table, show all for now
         getRecentActivities(user.uid)
@@ -51,12 +59,12 @@ const DoctorDashboard = () => {
         avatar: a.userId
       }));
 
-      setData({
-        appointments: appointments || [],
+      setData(prev => ({
+        ...prev,
         patients: patients || [],
         records: records || [],
         activities: normalizedActivities
-      });
+      }));
     } catch (error) {
       console.error("Dashboard data fetch error:", error);
     } finally {

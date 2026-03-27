@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
-const PatientRecordsTable = ({ records }) => {
+const NurseRecordsTable = ({ records }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const navigate = useNavigate();
 
   const filteredRecords = (records || []).filter(record => {
     const name = record.fullName || record.patientName || "";
@@ -13,7 +11,7 @@ const PatientRecordsTable = ({ records }) => {
   return (
     <div className="dashboard-card stretch-card">
       <div className="card-header">
-        <h2>Patient Records</h2>
+        <h2>Patient Records (View Only)</h2>
         <div className="header-tools">
           <div className="search-input-wrapper">
             <span className="search-icon" style={{ display: 'flex', alignItems: 'center' }}>
@@ -27,19 +25,16 @@ const PatientRecordsTable = ({ records }) => {
               className="record-search-input"
             />
           </div>
-          <button className="interactive-btn" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1px solid #e5e7eb', width: '36px', height: '36px', borderRadius: '8px', cursor: 'pointer', color: '#6b7280' }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-          </button>
         </div>
       </div>
       <div className="doctor-table-wrapper">
-        <table className="doctor-table interactive-table">
+        <table className="doctor-table">
           <thead>
             <tr>
               <th>Patient Name</th>
               <th>Condition</th>
               <th>Last Updated</th>
-              <th>Status</th>
+              <th>Action</th>
             </tr>
           </thead>
           <tbody>
@@ -49,18 +44,7 @@ const PatientRecordsTable = ({ records }) => {
                 <td>{record.medicalHistory?.conditions || "General Checkup"}</td>
                 <td>{record.updatedAt ? new Date(record.updatedAt).toLocaleDateString() : "No data"}</td>
                 <td>
-                  <button
-                    className="badge badge-blue view-btn"
-                    onClick={() => {
-                      if (!record.id) {
-                        console.error("Cannot navigate: Record ID is missing");
-                        return;
-                      }
-                      navigate(`/doctor/patient/${record.id}`);
-                    }}
-                  >
-                    View
-                  </button>
+                  <button className="badge badge-blue">View</button>
                 </td>
               </tr>
             ))}
@@ -74,4 +58,4 @@ const PatientRecordsTable = ({ records }) => {
   );
 };
 
-export default PatientRecordsTable;
+export default NurseRecordsTable;

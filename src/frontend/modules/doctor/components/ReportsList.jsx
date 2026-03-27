@@ -5,9 +5,6 @@ const ReportsList = ({ reports }) => {
     <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column' }}>
       <div className="flex-between mb-6">
         <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Reports</h3>
-        <button style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-          + Add Reports
-        </button>
       </div>
       
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>

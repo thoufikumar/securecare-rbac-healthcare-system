@@ -14,6 +14,12 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { auth, secondaryAuth, db } from "../../config/firebase";
 import { logEvent } from "../../security/auditLogger";
 
+// Role Services
+import { createDoctor } from "../doctor/DoctorService";
+import { createNurse } from "../nurse/NurseService";
+import { createReceptionist } from "../receptionist/ReceptionistService";
+import { createAdmin } from "../admin/AdminService";
+
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
@@ -151,12 +157,24 @@ export const AuthProvider = ({ children }) => {
       const cred = await createUserWithEmailAndPassword(secondaryAuth, newEmail, newPassword);
       const newUid = cred.user.uid;
 
-      // Assign Firestore Role
+      // 2. Assign Firestore Role (Auth Source)
       await setDoc(doc(db, "users", newUid), {
         email: newEmail,
         role: newRole,
         createdAt: new Date().toISOString()
       });
+
+      // 3. Create Role-Specific Document
+      const roleData = {
+        id: newUid,
+        email: newEmail,
+        name: newEmail.split('@')[0], // Default name from email
+      };
+
+      if (newRole === "doctor") await createDoctor(roleData);
+      if (newRole === "nurse") await createNurse(roleData);
+      if (newRole === "receptionist") await createReceptionist(roleData);
+      if (newRole === "admin") await createAdmin(roleData);
 
       // Send password reset email natively so the user takes over their password
       await sendPasswordResetEmail(auth, newEmail);

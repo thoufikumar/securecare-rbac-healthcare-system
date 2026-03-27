@@ -5,18 +5,32 @@ const PatientsTable = ({ patients }) => {
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState(null);
 
+  // Close dropdown when clicking anywhere else
+  React.useEffect(() => {
+    const closeDropdown = () => setActiveDropdown(null);
+    if (activeDropdown) {
+      document.addEventListener('click', closeDropdown);
+    }
+    return () => document.removeEventListener('click', closeDropdown);
+  }, [activeDropdown]);
+
   const handleRowClick = (id) => {
+    if (!id) {
+      alert("Patient data corrupted. Please refresh or contact admin.");
+      return;
+    }
     navigate(`/doctor/patient/${id}`);
   };
 
   const toggleDropdown = (e, id) => {
     e.stopPropagation();
+    if (!id) return;
     setActiveDropdown(activeDropdown === id ? null : id);
   };
 
-  const handleAction = (e, actionType) => {
+  const handleAction = (e, actionType, patient) => {
     e.stopPropagation();
-    console.log(actionType);
+    console.log(actionType, patient);
     setActiveDropdown(null);
   };
 
@@ -34,20 +48,21 @@ const PatientsTable = ({ patients }) => {
           </tr>
         </thead>
         <tbody>
-          {patients.map((p) => {
+          {patients.map((p, index) => {
+            const rowId = p.id || `row-${index}`;
             return (
               <tr 
-                key={p.id} 
+                key={rowId} 
                 className="patient-row"
                 onClick={() => handleRowClick(p.id)}
               >
                 <td>
                   <div className="table-user">
-                    <img src={p.avatar || `https://i.pravatar.cc/150?u=${p.id}`} alt="avatar" className="avatar" />
-                    <span>{p.firstName}</span>
+                    <img src={p.avatar || `https://i.pravatar.cc/150?u=${rowId}`} alt="avatar" className="avatar" />
+                    <span>{p.firstName || p.fullName?.split(' ')[0] || 'N/A'}</span>
                   </div>
                 </td>
-                <td>{p.lastName}</td>
+                <td>{p.lastName || p.fullName?.split(' ').slice(1).join(' ') || ''}</td>
                 <td>
                   <span className={`status active`}>
                     Active
@@ -64,13 +79,17 @@ const PatientsTable = ({ patients }) => {
                     </span>
                   </div>
                 </td>
-                <td className="item-action" style={{ position: 'relative' }}>
-                  <span onClick={(e) => toggleDropdown(e, p.id)} style={{ padding: '8px', cursor: 'pointer' }}>...</span>
-                  {activeDropdown === p.id && (
+                <td className="item-action" style={{ position: 'relative', overflow: 'visible' }}>
+                  <span 
+                    onClick={(e) => toggleDropdown(e, rowId)} 
+                    style={{ padding: '8px', cursor: 'pointer', display: 'inline-block' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                  </span>
+                  {activeDropdown === rowId && (
                     <div className="dropdown-menu">
-                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Edit")}>Edit</div>
-                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Delete")}>Delete</div>
-                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Info")}>Info</div>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Edit", p)}>Edit</div>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Delete", p)}>Delete</div>
                     </div>
                   )}
                 </td>

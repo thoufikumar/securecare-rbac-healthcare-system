@@ -13,7 +13,9 @@ import DoctorPatients from "../modules/doctor/DoctorPatients";
 import DoctorRecords from "../modules/doctor/DoctorRecords";
 import DoctorRecordDetail from "../modules/doctor/DoctorRecordDetail";
 import PatientDetail from "../modules/doctor/PatientDetail";
+import NurseLayout from "../modules/nurse/NurseLayout";
 import NurseDashboard from "../modules/nurse/NurseDashboard";
+import NursePatients from "../modules/nurse/NursePatients";
 import ReceptionistLayout from "../modules/receptionist/ReceptionistLayout";
 import ReceptionistDashboard from "../modules/receptionist/ReceptionistDashboard";
 import PatientRegistration from "../modules/receptionist/PatientRegistration";
@@ -23,7 +25,6 @@ import AdminLayout from "../modules/admin/AdminLayout";
 import AdminDashboard from "../modules/admin/AdminDashboard";
 import ManageUsers from "../modules/admin/ManageUsers";
 import AuditLogs from "../modules/admin/AuditLogs";
-import BreachSimulator from "../modules/admin/BreachSimulator";
 
 const router = createBrowserRouter([
   { path: "/", element: <Login /> },
@@ -41,8 +42,7 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <AdminDashboard /> },
       { path: "users", element: <ManageUsers /> },
-      { path: "logs", element: <AuditLogs /> },
-      { path: "breach", element: <BreachSimulator /> }
+      { path: "logs", element: <AuditLogs /> }
     ]
   },
 
@@ -67,14 +67,13 @@ const router = createBrowserRouter([
     path: "/nurse",
     element: (
       <ProtectedRoute allowedRoles={["nurse", "admin"]}>
-        <DoctorLayout />
+        <NurseLayout />
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <DoctorDashboard /> },
-      { path: "patients", element: <DoctorPatients /> },
-      { path: "records", element: <DoctorRecords /> },
-      { path: "records/:id", element: <DoctorRecordDetail /> },
+      { index: true, element: <NurseDashboard /> },
+      { path: "monitoring", element: <NursePatients /> },
+      { path: "tasks", element: <NurseDashboard /> },
       { path: "patient/:id", element: <PatientDetail /> }
     ]
   },

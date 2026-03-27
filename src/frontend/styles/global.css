@@ -1519,7 +1519,7 @@ body {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 20px;
 }
 
@@ -1832,24 +1832,30 @@ body {
   right: 20px;
   top: 36px;
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  padding: 4px 0;
-  z-index: 10;
-  min-width: 120px;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+  min-width: 140px;
+  z-index: 999;
   border: 1px solid #f3f4f6;
   text-align: left;
+  pointer-events: auto;
 }
 
 .dropdown-item {
-  padding: 8px 16px;
+  display: block;
+  width: 100%;
+  padding: 10px 16px;
   font-size: 13px;
   color: #374151;
   cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s;
 }
 
 .dropdown-item:hover {
-  background: #f9fafb;
+  background: #f3f4f6;
+  color: #2563eb;
 }
 
 /* ══════════════════════════════════════════════════

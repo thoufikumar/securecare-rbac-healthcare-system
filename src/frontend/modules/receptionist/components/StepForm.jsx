@@ -9,12 +9,15 @@ import AppointmentDetails from './AppointmentDetails';
 
 // Simple stub for encryption matching backend requirements locally
 import { addPatient } from '../../../../backend/modules/patient/PatientService';
+import { createAppointment } from '../../../../backend/modules/appointment/AppointmentService';
 import useAuth from '../../../../backend/modules/auth/useAuth';
 
 export const registerPatientWithAppointment = async (data, user) => {
   try {
     // 1. Create patient via secure service (handles encryption + RBAC)
     const patientData = {
+      firstName: data.personal.firstName,
+      lastName: data.personal.lastName,
       fullName: `${data.personal.firstName} ${data.personal.lastName}`,
       age: data.personal.age,
       gender: data.personal.gender,
@@ -32,7 +35,7 @@ export const registerPatientWithAppointment = async (data, user) => {
     const patientId = await addPatient(patientData, user);
 
     // 2. Create appointment mapping
-    await addDoc(collection(db, "appointments"), {
+    await createAppointment({
       patientId: patientId,
       patientName: patientData.fullName,
       doctorId: data.appointment.doctorId,
@@ -40,9 +43,8 @@ export const registerPatientWithAppointment = async (data, user) => {
       time: data.appointment.time,
       reason: data.appointment.reason,
       priority: data.appointment.priority,
-      status: "pending",
-      createdAt: new Date().toISOString()
-    });
+      status: "upcoming"
+    }, user);
 
     return true;
   } catch (error) {

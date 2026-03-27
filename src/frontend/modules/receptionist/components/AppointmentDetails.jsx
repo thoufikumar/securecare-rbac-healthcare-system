@@ -1,6 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { getDoctors } from '../../../../backend/modules/doctor/DoctorService';
 
 const AppointmentDetails = ({ data, update }) => {
+  const [doctors, setDoctors] = useState([]);
+
+  useEffect(() => {
+    const fetchDoctors = async () => {
+      try {
+        const docs = await getDoctors();
+        setDoctors(docs);
+      } catch (err) {
+        console.error("Error fetching doctors for registration:", err);
+      }
+    };
+    fetchDoctors();
+  }, []);
+
+  const formatDoctorName = (doctor) => {
+    if (doctor.name && !doctor.name.includes('@')) return doctor.name;
+    const email = doctor.email || "";
+    return email.split('@')[0];
+  };
+
   return (
     <div className="fade-in">
       <h3 className="section-title-md mb-6">Schedule Initial Appointment</h3>
@@ -11,9 +32,11 @@ const AppointmentDetails = ({ data, update }) => {
             <label className="form-label">Doctor Assignment *</label>
             <select className="form-input" value={data.doctorId} onChange={e => update({doctorId: e.target.value})}>
               <option value="">Select Doctor</option>
-              <option value="roger">Dr. Roger Curtis (General)</option>
-              <option value="hess">Dr. Alex Hess (Cardiology)</option>
-              <option value="chen">Dr. Marcus Chen (Surgery)</option>
+              {doctors.map(doctor => (
+                <option key={doctor.id} value={doctor.id}>
+                  Dr. {formatDoctorName(doctor)} ({doctor.department || 'General'})
+                </option>
+              ))}
             </select>
           </div>
           

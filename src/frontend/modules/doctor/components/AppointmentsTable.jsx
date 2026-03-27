@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const AppointmentsTable = ({ appointments }) => {
+const AppointmentsTable = ({ appointments, onAction }) => {
   const [activeTab, setActiveTab] = useState('All Appointment');
   const [activeDropdown, setActiveDropdown] = useState(null);
 
@@ -9,9 +9,9 @@ const AppointmentsTable = ({ appointments }) => {
     setActiveDropdown(activeDropdown === id ? null : id);
   };
 
-  const handleAction = (e, actionType) => {
+  const handleAction = (e, actionType, appointment) => {
     e.stopPropagation();
-    console.log(actionType);
+    if (onAction) onAction(actionType, appointment);
     setActiveDropdown(null);
   };
 
@@ -19,9 +19,6 @@ const AppointmentsTable = ({ appointments }) => {
     <div className="card w-full mt-4" style={{ padding: '0px', overflow: 'hidden' }}>
       <div className="flex-between" style={{ padding: '24px 32px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#1e293b' }}>Appointment</h2>
-        <button style={{ background: 'none', border: 'none', color: '#2563eb', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-          + Add Appointment
-        </button>
       </div>
       
       <div className="tabs" style={{ padding: '0 32px', marginBottom: '8px' }}>
@@ -74,10 +71,18 @@ const AppointmentsTable = ({ appointments }) => {
                     {appt.paymentStatus || 'Complete'}
                   </span>
                 </td>
-                <td style={{ textAlign: 'right', paddingRight: '32px' }}>
-                  <button className="icon-btn-minimal">
+                <td style={{ textAlign: 'right', paddingRight: '32px', position: 'relative', overflow: 'visible' }}>
+                  <button className="icon-btn-minimal" onClick={(e) => toggleDropdown(e, appt.id)} style={{ pointerEvents: 'auto' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
                   </button>
+
+                  {activeDropdown === appt.id && (
+                    <div className="dropdown-menu shadow-lg" style={{ position: 'absolute', right: '32px', top: '40px', zIndex: 999, background: 'white', borderRadius: '12px', padding: '8px', minWidth: '160px', border: '1px solid #f1f5f9', textAlign: 'left', pointerEvents: 'auto' }}>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, 'AssignNurse', appt)}>Appoint Nurse</div>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, 'Update', appt)}>Update Patient</div>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, 'Delete', appt)}>Delete Patient</div>
+                    </div>
+                  )}
                 </td>
               </tr>
             )) : (

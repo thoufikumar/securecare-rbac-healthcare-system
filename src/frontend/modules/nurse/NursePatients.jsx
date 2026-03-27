@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import PatientsTable from './components/PatientsTable';
+import NursePatientsTable from './components/NursePatientsTable';
 import useAuth from '../../../backend/modules/auth/useAuth';
-
 import { getAllPatients } from '../../../backend/modules/patient/PatientService';
 
-const DoctorPatients = () => {
+const NursePatients = () => {
   const { getCurrentUser } = useAuth();
   const user = getCurrentUser();
   const [patients, setPatients] = useState([]);
@@ -25,11 +24,10 @@ const DoctorPatients = () => {
     fetchPatients();
   }, []);
 
-  // Filter by name or email
   const filteredPatients = patients.filter(p => {
     const term = searchTerm.toLowerCase();
-    const displayName = (p.fullName || `${p.firstName || ''} ${p.lastName || ''}`).trim().toLowerCase();
-    return displayName.includes(term) || (p.email && p.email.toLowerCase().includes(term)) || (p.city && p.city.toLowerCase().includes(term));
+    const fullName = `${p.firstName || p.fullName || ''} ${p.lastName || ''}`.toLowerCase();
+    return fullName.includes(term) || (p.email && p.email.toLowerCase().includes(term));
   });
 
   return (
@@ -37,7 +35,7 @@ const DoctorPatients = () => {
       {/* HEADER */}
       <div className="patients-header" style={{ position: 'relative', justifyContent: 'center' }}>
         <div className="header-title" style={{ position: 'absolute', left: '32px' }}>
-          <h2>Patient Lists</h2>
+          <h2>Patient Monitoring</h2>
         </div>
         <div className="header-actions">
           <div className="search-input-wrapper custom-search" style={{ width: '1000px', padding: '8px 16px' }}>
@@ -58,13 +56,13 @@ const DoctorPatients = () => {
       {loading ? (
         <div className="loading-state" style={{ marginTop: '50px' }}>
           <div className="spinner"></div>
-          <p>Loading Patients...</p>
+          <p>Loading Monitoring Data...</p>
         </div>
       ) : (
-        <PatientsTable patients={filteredPatients} />
+        <NursePatientsTable patients={filteredPatients} />
       )}
     </div>
   );
 };
 
-export default DoctorPatients;
+export default NursePatients;

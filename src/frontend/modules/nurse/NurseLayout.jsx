@@ -2,7 +2,7 @@ import React from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import useAuth from "../../../backend/modules/auth/useAuth";
 
-const ReceptionistLayout = () => {
+const NurseLayout = () => {
   const { logout, getCurrentUser } = useAuth();
   const navigate = useNavigate();
   const user = getCurrentUser();
@@ -17,28 +17,30 @@ const ReceptionistLayout = () => {
       {/* ── LEFT SIDEBAR ── */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" fill="#0D6EFD" />
-            <path d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" fill="#0D6EFD" />
-          </svg>
-          <span>SecureCare</span>
+          <div className="brand-icon" style={{ background: 'var(--color-primary)' }}>
+            <span style={{ color: 'white', fontWeight: 'bold' }}>N</span>
+          </div>
+          <span>Nurse Portal</span>
         </div>
 
         <nav className="sidebar-nav">
-          <NavLink to="/receptionist" end className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+          <NavLink to="/nurse" end className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
             Dashboard
           </NavLink>
-          <NavLink to="/receptionist/register" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
-            Add Patient
+          <NavLink to="/nurse/monitoring" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+            Patient Monitoring
+          </NavLink>
+          <NavLink to="/nurse/tasks" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
+            Care Tasks
           </NavLink>
         </nav>
 
         <div className="sidebar-footer">
           <div className="user-profile">
-            <div className="avatar">R</div>
+            <div className="avatar" style={{ background: '#ec4899' }}>N</div>
             <div className="user-info">
-              <span className="user-name">Receptionist</span>
-              <span className="user-email" style={{ fontSize: '12px' }}>{user?.email || "reception@system.com"}</span>
+              <span className="user-name">Nurse Staff</span>
+              <span className="user-email">{user?.email || "nurse@securecare.com"}</span>
             </div>
           </div>
           <button className="logout-btn" onClick={handleLogout}>Log Out</button>
@@ -55,4 +57,4 @@ const ReceptionistLayout = () => {
   );
 };
 
-export default ReceptionistLayout;
+export default NurseLayout;

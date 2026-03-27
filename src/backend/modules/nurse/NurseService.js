@@ -1,28 +1,50 @@
-// src/backend/modules/nurse/NurseService.js
-// Business logic for nurse-related operations in Firestore.
-
-import { doc, getDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { collection, doc, setDoc, getDoc, getDocs, query, where } from "firebase/firestore";
 import { db } from "../../config/firebase";
 
 const COLLECTION = "nurses";
 
 /**
- * Fetch a nurse profile by user ID.
+ * Initialize a nurse record in the 'nurses' collection.
  */
-export const getNurseProfile = async (nurseId) => {
-  const docSnap = await getDoc(doc(db, COLLECTION, nurseId));
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() };
+export const createNurse = async (nurseData) => {
+  try {
+    const nurseRef = doc(db, COLLECTION, nurseData.id);
+    await setDoc(nurseRef, {
+      ...nurseData,
+      userId: nurseData.id,
+      assignedPatientsCount: 0,
+      active: true,
+      createdAt: new Date().toISOString()
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("Error creating nurse:", error);
+    throw error;
+  }
 };
 
 /**
- * Fetch patients assigned to a nurse's ward.
+ * Fetch all registered nurses.
  */
-export const getNurseWardPatients = async (ward) => {
-  const q = query(
-    collection(db, "patients"),
-    where("ward", "==", ward)
-  );
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+export const getNurses = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION));
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error("Error fetching nurses:", error);
+    throw error;
+  }
+};
+
+/**
+ * Get a specific nurse's profile.
+ */
+export const getNurseById = async (id) => {
+  try {
+    const docSnap = await getDoc(doc(db, COLLECTION, id));
+    return docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
+  } catch (error) {
+    console.error("Error fetching nurse:", error);
+    throw error;
+  }
 };

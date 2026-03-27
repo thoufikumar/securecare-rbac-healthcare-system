@@ -3,30 +3,9 @@ import { collection, getDocs, query } from "firebase/firestore";
 import { db } from "../../../backend/config/firebase";
 import useAuth from "../../../backend/modules/auth/useAuth";
 
-const DUMMY_USERS = [
-  ...Array.from({ length: 12 }).map((_, i) => ({
-    id: `dummy-pat-${i}`,
-    email: `patient.${i + 1}@example.com`,
-    role: "patient",
-    createdAt: new Date(Date.now() - i * 86400000).toISOString()
-  })),
-  ...Array.from({ length: 12 }).map((_, i) => ({
-    id: `dummy-doc-${i}`,
-    email: `dr.smith${i + 1}@securecare.com`,
-    role: "doctor",
-    createdAt: new Date(Date.now() - i * 86400000).toISOString()
-  })),
-  ...Array.from({ length: 12 }).map((_, i) => ({
-    id: `dummy-nur-${i}`,
-    email: `staff.nurse${i + 1}@securecare.com`,
-    role: "nurse",
-    createdAt: new Date(Date.now() - i * 86400000).toISOString()
-  }))
-];
-
 const ManageUsers = () => {
   const { createUserByAdmin } = useAuth();
-  const [users, setUsers] = useState([]);
+  const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -41,24 +20,36 @@ const ManageUsers = () => {
   const [formSuccess, setFormSuccess] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchItems = async () => {
     setLoading(true);
     try {
-      const q = query(collection(db, "users"));
+      let collectionName = "users";
+      if (activeTab === "patient") collectionName = "patients";
+      else if (activeTab === "doctor") collectionName = "doctors";
+      else if (activeTab === "nurse") collectionName = "nurses";
+
+      const q = query(collection(db, collectionName));
       const snapshot = await getDocs(q);
-      const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const combinedUsers = [...fetchedUsers, ...DUMMY_USERS];
-      combinedUsers.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
-      setUsers(combinedUsers);
+      const fetchedItems = snapshot.docs.map(doc => ({ 
+        id: doc.id, 
+        ...doc.data(),
+        // Normalize display fields
+        displayName: doc.data().fullName || doc.data().name || doc.data().email?.split('@')[0] || "Unknown",
+        displayEmail: doc.data().email || "No Email",
+        displayRole: doc.data().role || activeTab
+      }));
+
+      fetchedItems.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+      setItems(fetchedItems);
     } catch (err) {
-      console.error("Error fetching users:", err);
+      console.error(`Error fetching ${activeTab} data:`, err);
     }
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    fetchItems();
+  }, [activeTab]);
 
   const handleCreateUser = async (e) => {
     e.preventDefault();
@@ -68,24 +59,16 @@ const ManageUsers = () => {
 
     const res = await createUserByAdmin(email, password, role);
     if (res.success) {
-      setFormSuccess("User created successfully. A password reset link has been sent to their email.");
+      setFormSuccess("User created successfully.");
       setEmail("");
       setPassword("");
       setRole("doctor");
-      fetchUsers(); // Refresh dynamically
+      fetchItems(); 
     } else {
       setFormError(res.message);
     }
     setIsSubmitting(false);
   };
-
-  // Filter based on selected tab
-  const filteredUsers = users.filter(u => {
-    if (activeTab === "patient") return u.role === "patient";
-    if (activeTab === "doctor") return u.role === "doctor";
-    if (activeTab === "nurse") return u.role === "nurse";
-    return true; // Default fallback if tab doesn't strictly match
-  });
 
   return (
     <div className="crm-view">
@@ -154,15 +137,15 @@ const ManageUsers = () => {
         <p className="loading-text">Loading users...</p>
       ) : (
         <div className="user-grid">
-          {filteredUsers.map(u => (
+          {items.map(u => (
             <div className="user-card" key={u.id}>
 
               <div className="card-top" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                 <div className="user-cell" style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <div className="avatar-small">{u.email.charAt(0).toUpperCase()}</div>
+                  <div className="avatar-small">{u.displayName.charAt(0).toUpperCase()}</div>
                   <div className="user-info" style={{ display: 'flex', flexDirection: 'column' }}>
                     <span className="user-name" style={{ fontWeight: 600, fontSize: '14px', color: '#111827' }}>
-                      {u.email.split('@')[0]}
+                      {u.displayName}
                     </span>
                     <span className="date-text" style={{ fontSize: '12px', color: '#6b7280' }}>
                       {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "Just now"}
@@ -174,20 +157,20 @@ const ManageUsers = () => {
 
               <div className="card-middle" style={{ padding: '12px 0', borderTop: '1px solid #f3f4f6', borderBottom: '1px solid #f3f4f6', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', color: '#6b7280' }}>{u.email}</span>
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>{u.displayEmail}</span>
                 </div>
               </div>
 
               <div className="card-bottom" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span className="role-badge">{u.role}</span>
+                <span className="role-badge" style={{ textTransform: 'capitalize' }}>{u.displayRole}</span>
                 <span className="status-badge" style={{ fontSize: '11px', fontWeight: 600, padding: '4px 8px', borderRadius: '4px', background: '#dcfce7', color: '#166534' }}>Active</span>
               </div>
 
             </div>
           ))}
-          {filteredUsers.length === 0 && (
+          {items.length === 0 && (
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '40px', color: '#6b7280' }}>
-              No users found matching this tab filter.
+              No {activeTab}s found in the system.
             </div>
           )}
         </div>

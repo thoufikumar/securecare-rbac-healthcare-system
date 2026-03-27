@@ -37,9 +37,6 @@ const AdminLayout = () => {
           <NavLink to="/admin/logs" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
             Audit Logs
           </NavLink>
-          <NavLink to="/admin/breach" className={({ isActive }) => isActive ? "nav-item active" : "nav-item"}>
-            Breach Simulator
-          </NavLink>
         </nav>
 
         <div className="sidebar-footer">

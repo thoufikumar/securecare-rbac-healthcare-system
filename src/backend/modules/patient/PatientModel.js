@@ -9,6 +9,8 @@
  */
 export const createPatientModel = (data) => ({
   id: data.id || null,
+  firstName: data.firstName || "",
+  lastName: data.lastName || "",
   fullName: data.fullName || "",
   age: data.age || "",
   gender: data.gender || "",

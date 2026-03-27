@@ -68,7 +68,7 @@ const DoctorRecords = () => {
         <h2 className="section-title-sm" style={{ color: '#374151', marginBottom: '31px' }}>Patient Folders</h2>
         <RecordFolders folders={patients.map((p, i) => ({
           id: p.id,
-          title: `${p.firstName} ${p.lastName}`,
+          title: p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Untitled Folder',
           files: (p.prescriptions || []).length + 2, // Mocking file count based on prescriptions
           size: '12 MB',
           color: ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'][i % 6]

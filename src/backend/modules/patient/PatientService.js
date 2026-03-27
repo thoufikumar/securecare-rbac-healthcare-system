@@ -16,6 +16,7 @@ import {
 import { db } from "../../config/firebase";
 import { encryptData, decryptData } from "../../security/encryption";
 import { createPatientModel } from "./PatientModel";
+import { logEvent } from "../audit/AuditService";
 
 const COLLECTION = "patients";
 
@@ -43,6 +44,14 @@ export const addPatient = async (patientData, user) => {
   };
 
   const docRef = await addDoc(collection(db, COLLECTION), encrypted);
+  
+  // 4. Log Event
+  await logEvent({
+    action: "PATIENT_CREATED",
+    performedBy: { userId: user.uid, role: user.role, email: user.email },
+    target: { patientId: docRef.id }
+  });
+
   return docRef.id;
 };
 
@@ -171,7 +180,7 @@ export const getPatientsByDoctor = async (doctorId) => {
     where("assignedDoctorId", "==", doctorId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
 };
 
 /**
@@ -181,8 +190,8 @@ export const getAllPatients = async () => {
   try {
     const snapshot = await getDocs(collection(db, COLLECTION));
     return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      id: doc.id
     }));
   } catch (error) {
     console.error("Error getting all patients:", error);
@@ -208,8 +217,8 @@ export const getAppointmentsByRole = async (role, userId) => {
     
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      id: doc.id
     }));
   } catch (error) {
     console.error("Error fetching appointments:", error);
@@ -230,8 +239,8 @@ export const getRecentActivities = async (userId) => {
     );
     const snapshot = await getDocs(q);
     const logs = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
+      ...doc.data(),
+      id: doc.id
     }));
     
     // Sort manually if no index
@@ -277,4 +286,117 @@ export const updatePatient = async (patientId, updatedData) => {
  */
 export const deletePatient = async (patientId) => {
   await deleteDoc(doc(db, COLLECTION, patientId));
+};
+/**
+ * Assign a nurse to a patient and attach a care plan.
+ * RBAC: Only Doctors can assign nurses.
+ */
+export const assignNurseToPatient = async (patientId, nurseId, tasks, user, appointmentId = null) => {
+  if (user.role !== "doctor") {
+    throw new Error("Unauthorized: Only doctors can assign nurses to patients");
+  }
+
+  try {
+    const patientRef = doc(db, COLLECTION, patientId);
+    await updateDoc(patientRef, {
+      assignedNurseId: nurseId,
+      carePlan: {
+        tasks: tasks.map(t => ({
+          ...t,
+          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
+          status: "pending",
+          createdAt: new Date().toISOString()
+        })),
+        appointmentId,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid
+      },
+      updatedAt: new Date().toISOString()
+    });
+
+    await logEvent({
+      action: "NURSE_ASSIGNED",
+      performedBy: { userId: user.uid, role: user.role, email: user.email },
+      target: { patientId, nurseId, appointmentId }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error assigning nurse:", error);
+    throw error;
+  }
+};
+
+/**
+ * Subscribe to patients assigned to a specific nurse in real-time.
+ */
+export const subscribeToPatientsByNurse = (nurseId, callback) => {
+  const q = query(
+    collection(db, COLLECTION),
+    where("assignedNurseId", "==", nurseId)
+  );
+  return onSnapshot(q, (snapshot) => {
+    const patients = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    callback(patients);
+  });
+};
+
+/**
+ * Fetch all patients assigned to a specific nurse.
+ */
+export const getPatientsByNurse = async (nurseId) => {
+  try {
+    const q = query(
+      collection(db, COLLECTION),
+      where("assignedNurseId", "==", nurseId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+  } catch (error) {
+    console.error("Error fetching patients by nurse:", error);
+    throw error;
+  }
+};
+
+/**
+ * Update the status of a specific task in a patient's care plan.
+ * RBAC: Nurses can update task status.
+ */
+export const updateCarePlanTaskStatus = async (patientId, taskId, status, user) => {
+  if (user.role !== "nurse" && user.role !== "doctor") {
+    throw new Error("Unauthorized: Role must be nurse or doctor");
+  }
+
+  try {
+    const patientRef = doc(db, COLLECTION, patientId);
+    const docSnap = await getDoc(patientRef);
+    if (!docSnap.exists()) throw new Error("Patient not found");
+
+    const data = docSnap.data();
+    const tasks = data.carePlan?.tasks || [];
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+
+    if (taskIndex === -1) throw new Error("Task not found");
+
+    tasks[taskIndex].status = status;
+    tasks[taskIndex].completedAt = status === "completed" ? new Date().toISOString() : null;
+    tasks[taskIndex].completedBy = user.uid;
+
+    await updateDoc(patientRef, {
+      "carePlan.tasks": tasks,
+      updatedAt: new Date().toISOString()
+    });
+
+    await logEvent({
+      action: "TASK_COMPLETED",
+      performedBy: { userId: user.uid, role: user.role, email: user.email },
+      target: { patientId },
+      metadata: { taskDetails: `TaskId: ${taskId}, Status: ${status}` }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error updating task status:", error);
+    throw error;
+  }
 };
