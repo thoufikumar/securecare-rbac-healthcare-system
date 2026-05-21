@@ -12,6 +12,7 @@ import DoctorDashboard from "../modules/doctor/DoctorDashboard";
 import DoctorPatients from "../modules/doctor/DoctorPatients";
 import DoctorRecords from "../modules/doctor/DoctorRecords";
 import DoctorRecordDetail from "../modules/doctor/DoctorRecordDetail";
+import PatientIntakeForm from "../modules/doctor/PatientIntakeForm";
 import PatientDetail from "../modules/doctor/PatientDetail";
 import NurseLayout from "../modules/nurse/NurseLayout";
 import NurseDashboard from "../modules/nurse/NurseDashboard";
@@ -59,6 +60,7 @@ const router = createBrowserRouter([
       { path: "patients", element: <DoctorPatients /> },
       { path: "records", element: <DoctorRecords /> },
       { path: "records/:id", element: <DoctorRecordDetail /> },
+      { path: "intake/:id", element: <PatientIntakeForm /> },
       { path: "patient/:id", element: <PatientDetail /> }
     ]
   },
@@ -86,8 +88,17 @@ const router = createBrowserRouter([
     ),
     children: [
       { index: true, element: <ReceptionistDashboard /> },
-      { path: "register", element: <PatientRegistration /> }
+      { path: "register", element: <PatientRegistration /> },
+      { path: "intake/:patientId", element: <PatientIntakeForm /> }
     ]
+  },
+  {
+    path: "/intake/:patientId",
+    element: (
+      <ProtectedRoute allowedRoles={["receptionist", "doctor", "admin"]}>
+        <PatientIntakeForm />
+      </ProtectedRoute>
+    )
   },
   {
     path: "/patient/create",

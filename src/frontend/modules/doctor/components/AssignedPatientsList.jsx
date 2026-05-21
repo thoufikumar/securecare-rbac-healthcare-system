@@ -1,8 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const AssignedPatientsList = ({ patients }) => {
+const AssignedPatientsList = ({ patients, onAction }) => {
   const navigate = useNavigate();
+  const [activeDropdown, setActiveDropdown] = useState(null);
+
+  // Close dropdown when clicking anywhere else
+  React.useEffect(() => {
+    const closeDropdown = () => setActiveDropdown(null);
+    if (activeDropdown) {
+      document.addEventListener('click', closeDropdown);
+    }
+    return () => document.removeEventListener('click', closeDropdown);
+  }, [activeDropdown]);
 
   const handlePatientClick = (id) => {
     if (!id) {
@@ -10,6 +20,19 @@ const AssignedPatientsList = ({ patients }) => {
       return;
     }
     navigate(`/doctor/patient/${id}`);
+  };
+
+  const toggleDropdown = (e, id) => {
+    e.stopPropagation();
+    setActiveDropdown(activeDropdown === id ? null : id);
+  };
+
+  const handleAction = (e, actionType, patient) => {
+    e.stopPropagation();
+    if (onAction) {
+      onAction(actionType, patient);
+    }
+    setActiveDropdown(null);
   };
 
   return (
@@ -22,9 +45,9 @@ const AssignedPatientsList = ({ patients }) => {
           <thead>
             <tr>
               <th>Patient Name</th>
-              <th>Assigned Condition</th>
+              <th>Condition</th>
               <th>Status</th>
-              <th>Action</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -32,17 +55,30 @@ const AssignedPatientsList = ({ patients }) => {
               <tr key={p.id} onClick={() => handlePatientClick(p.id)} className="clickable-row">
                 <td>
                   <div className="table-user">
-                    <img src={p.avatar || `https://ui-avatars.com/api/?name=${p.fullName || p.name || 'P'}`} alt="avatar" />
+                    <img src={p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.fullName || p.name || 'P')}&background=random&color=fff`} alt="avatar" />
                     <span>{p.fullName || p.name || "Unknown Patient"}</span>
                   </div>
                 </td>
-                <td>{p.medicalHistory?.conditions || p.condition || "General Care"}</td>
+                <td>{p.medicalHistory?.conditions?.[0] || p.condition || "General Care"}</td>
                 <td>
                   <span className={`badge ${p.status === 'Active' ? 'badge-blue' : 'badge-green'}`}>
-                    {p.status}
+                    {p.status || 'Active'}
                   </span>
                 </td>
-                <td className="item-action interactive-icon" onClick={(e) => { e.stopPropagation(); console.log("More options", p.id); }}>...</td>
+                <td className="item-action" style={{ position: 'relative', overflow: 'visible' }}>
+                  <span 
+                    onClick={(e) => toggleDropdown(e, p.id)} 
+                    style={{ padding: '8px', cursor: 'pointer', display: 'inline-block' }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: '#94a3b8' }}><circle cx="12" cy="12" r="1"></circle><circle cx="12" cy="5" r="1"></circle><circle cx="12" cy="19" r="1"></circle></svg>
+                  </span>
+                  {activeDropdown === p.id && (
+                    <div className="dropdown-menu">
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Edit", p)}>Edit</div>
+                      <div className="dropdown-item" onClick={(e) => handleAction(e, "Delete", p)}>Delete</div>
+                    </div>
+                  )}
+                </td>
               </tr>
             ))}
             {patients.length === 0 && (

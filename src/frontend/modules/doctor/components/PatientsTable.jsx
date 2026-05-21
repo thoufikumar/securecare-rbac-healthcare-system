@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const PatientsTable = ({ patients }) => {
+const PatientsTable = ({ patients, onAction }) => {
   const navigate = useNavigate();
   const [activeDropdown, setActiveDropdown] = useState(null);
 
@@ -30,7 +30,9 @@ const PatientsTable = ({ patients }) => {
 
   const handleAction = (e, actionType, patient) => {
     e.stopPropagation();
-    console.log(actionType, patient);
+    if (onAction) {
+      onAction(actionType, patient);
+    }
     setActiveDropdown(null);
   };
 
@@ -58,7 +60,7 @@ const PatientsTable = ({ patients }) => {
               >
                 <td>
                   <div className="table-user">
-                    <img src={p.avatar || `https://i.pravatar.cc/150?u=${rowId}`} alt="avatar" className="avatar" />
+                    <img src={p.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(p.fullName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'P')}&background=random&color=fff`} alt="avatar" className="avatar" />
                     <span>{p.firstName || p.fullName?.split(' ')[0] || 'N/A'}</span>
                   </div>
                 </td>

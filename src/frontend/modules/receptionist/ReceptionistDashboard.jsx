@@ -10,25 +10,39 @@ const ReceptionistDashboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchAppointments = async () => {
+    const fetchDashboardData = async () => {
       try {
-        const snapshot = await getDocs(collection(db, "appointments"));
-        const data = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
+        const [appSnap, stateSnap] = await Promise.all([
+          getDocs(collection(db, "appointments")),
+          getDocs(collection(db, "patientState"))
+        ]);
+
+        const statesMap = {};
+        stateSnap.docs.forEach(doc => {
+          statesMap[doc.id] = doc.data();
+        });
+
+        const data = appSnap.docs.map(doc => {
+          const appData = doc.data();
+          const pState = statesMap[appData.patientId] || {};
+          return {
+            id: doc.id,
+            ...appData,
+            intakeStatus: pState.intakeStatus || "N/A"
+          };
+        });
         
-        // Sort newest first or by date
+        // Sort newest first
         data.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
         setAppointments(data);
       } catch (error) {
-        console.error("Error fetching appointments:", error);
+        console.error("Error fetching dashboard data:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchAppointments();
+    fetchDashboardData();
   }, []);
 
   const pendingCount = appointments.filter(a => a.status === 'pending').length;

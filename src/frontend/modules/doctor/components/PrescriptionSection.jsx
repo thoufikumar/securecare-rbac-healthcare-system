@@ -1,6 +1,8 @@
 import React from 'react';
 
 const PrescriptionSection = ({ prescriptions = [], onAdd, userRole }) => {
+  if (!prescriptions) return <div className="prescription-section">Loading prescriptions...</div>;
+
   return (
     <div className="prescription-section">
       <div className="flex-between mb-4">

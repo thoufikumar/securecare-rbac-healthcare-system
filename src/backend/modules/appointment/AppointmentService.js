@@ -33,10 +33,17 @@ export const createAppointment = async (appointmentData, user) => {
 
     // 2. Update Patient with Assigned Doctor
     const patientRef = doc(db, "patients", appointmentData.patientId);
-    await updateDoc(patientRef, {
+    const stateRef = doc(db, "patientState", appointmentData.patientId);
+    
+    const updatePayload = {
       assignedDoctorId: appointmentData.doctorId,
       updatedAt: new Date().toISOString()
-    });
+    };
+
+    await Promise.all([
+      updateDoc(patientRef, updatePayload),
+      updateDoc(stateRef, updatePayload)
+    ]);
 
     // 3. Update Doctor with Assigned Patient reference
     const doctorRef = doc(db, "doctors", appointmentData.doctorId);
@@ -81,10 +88,15 @@ export const subscribeToDoctorAppointments = (doctorId, callback) => {
       rawAppointments.map(async (appt) => {
         try {
           const patientSnap = await getDoc(doc(db, "patients", appt.patientId));
-          const patientData = patientSnap.exists() ? patientSnap.data() : { fullName: "Unknown Patient" };
+          const pData = patientSnap.exists() ? patientSnap.data() : null;
+          const basic = pData?.basicInfo || {};
+          
+          const patientName = basic.fullName || 
+            `${basic.firstName || 'Unknown'} ${basic.lastName || 'Patient'}`.trim();
+
           return {
             ...appt,
-            patientName: patientData.fullName || `${patientData.firstName} ${patientData.lastName}`
+            patientName: patientName || "Unknown Patient"
           };
         } catch (e) {
           return { ...appt, patientName: "Error loading name" };

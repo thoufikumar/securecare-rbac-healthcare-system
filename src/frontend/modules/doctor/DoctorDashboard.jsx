@@ -4,6 +4,8 @@ import StatsCards from './components/StatsCards';
 import AppointmentsList from './components/AppointmentsList';
 import AssignedPatientsList from './components/AssignedPatientsList';
 import PatientRecordsTable from './components/PatientRecordsTable';
+import UpdatePatientModal from './components/UpdatePatientModal';
+import DeletePatientModal from './components/DeletePatientModal';
 import RecentActivity from './components/RecentActivity';
 import useAuth from '../../../backend/modules/auth/useAuth';
 import { 
@@ -23,6 +25,11 @@ const DoctorDashboard = () => {
     records: [],
     activities: []
   });
+
+  // Modal States
+  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   useEffect(() => {
     if (user && user.role === 'doctor') {
@@ -54,7 +61,7 @@ const DoctorDashboard = () => {
       const normalizedActivities = (activities || []).map(a => ({
         id: a.id,
         action: a.action.replace(/_/g, ' '),
-        patient: a.resource.split('/').pop(),
+        patient: a.target?.patientId || 'N/A',
         time: a.timestamp ? new Date(a.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
         avatar: a.userId
       }));
@@ -69,6 +76,15 @@ const DoctorDashboard = () => {
       console.error("Dashboard data fetch error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTableAction = (action, patient) => {
+    setSelectedPatient(patient);
+    if (action === 'Edit') {
+      setIsUpdateModalOpen(true);
+    } else if (action === 'Delete') {
+      setIsDeleteModalOpen(true);
     }
   };
 
@@ -100,10 +116,33 @@ const DoctorDashboard = () => {
         </div>
 
         <div className="right-column">
-          <AssignedPatientsList patients={data.patients} />
+          <AssignedPatientsList 
+            patients={data.patients} 
+            onAction={handleTableAction}
+          />
           <RecentActivity activities={data.activities} />
         </div>
       </div>
+
+      {/* MODALS */}
+      {isUpdateModalOpen && selectedPatient && (
+        <UpdatePatientModal 
+          isOpen={isUpdateModalOpen}
+          onClose={() => setIsUpdateModalOpen(false)}
+          patient={selectedPatient}
+          onSuccess={fetchDashboardData}
+        />
+      )}
+
+      {isDeleteModalOpen && selectedPatient && (
+        <DeletePatientModal 
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          patientId={selectedPatient.id}
+          patientName={selectedPatient.fullName || `${selectedPatient.firstName} ${selectedPatient.lastName}`}
+          onSuccess={fetchDashboardData}
+        />
+      )}
     </div>
   );
 };

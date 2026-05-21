@@ -1,13 +1,14 @@
 import React from 'react';
 
 const PatientProfileCard = ({ patient, variant = "detail" }) => {
+  if (!patient) return <div className="profile-card appt-profile-card">Loading patient profile...</div>;
+
   if (variant === "appointment") {
     return (
       <div className="profile-card appt-profile-card">
-        <img src={patient.avatar || "https://ui-avatars.com/api/?name=Patient"} alt="Profile" className="profile-avatar-lg" style={{ width: '100px', height: '100px', borderRadius: '16px', marginBottom: '16px', objectFit: 'cover', border: '3px solid #eff6ff' }} />
+        <img src={patient.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(patient.firstName + ' ' + patient.lastName)}&background=random&color=fff`} alt="Profile" className="profile-avatar-lg" style={{ width: '100px', height: '100px', borderRadius: '16px', marginBottom: '16px', objectFit: 'cover', border: '3px solid #eff6ff' }} />
         <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>{patient.firstName} {patient.lastName}</h3>
         <p style={{ fontSize: '14px', color: '#64748b', marginBottom: '24px' }}>Age: {patient.age || 'N/A'}</p>
-        <button className="primary-btn mt-4 w-full" style={{ padding: '12px', borderRadius: '12px', fontWeight: '600' }} onClick={() => console.log('Update')}>Update Profile</button>
       </div>
     );
   }

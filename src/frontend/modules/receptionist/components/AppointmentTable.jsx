@@ -1,6 +1,8 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const AppointmentTable = ({ appointments }) => {
+  const navigate = useNavigate();
 
   const getStatusBadge = (status) => {
     switch(status?.toLowerCase()) {
@@ -12,6 +14,17 @@ const AppointmentTable = ({ appointments }) => {
         return <span className="badge badge-green">Completed</span>;
       default:
         return <span className="badge">{status || 'Unknown'}</span>;
+    }
+  };
+
+  const getIntakeBadge = (status) => {
+    switch(status) {
+      case 'PENDING':
+        return <span className="badge" style={{background: '#fff7ed', color: '#ea580c', border: '1px solid #ffedd5'}}>🟡 Intake Pending</span>;
+      case 'COMPLETED':
+        return <span className="badge" style={{background: '#f0fdf4', color: '#16a34a', border: '1px solid #dcfce7'}}>🟢 Intake Completed</span>;
+      default:
+        return <span className="badge" style={{background: '#f8fafc', color: '#64748b'}}>N/A</span>;
     }
   };
 
@@ -33,8 +46,8 @@ const AppointmentTable = ({ appointments }) => {
               <th>Appointment ID</th>
               <th>Date</th>
               <th>Time Slot</th>
-              <th>Doctor Assigned</th>
               <th>Status</th>
+              <th>Intake</th>
               <th>Action</th>
             </tr>
           </thead>
@@ -45,15 +58,21 @@ const AppointmentTable = ({ appointments }) => {
                 <td style={{ color: '#64748b' }}>APT-{app.id.slice(0,5).toUpperCase()}</td>
                 <td>{app.date}</td>
                 <td>{app.time}</td>
-                <td>{app.doctorId ? `Doc-${app.doctorId}` : 'Any Available'}</td>
                 <td>{getStatusBadge(app.status)}</td>
+                <td>{getIntakeBadge(app.intakeStatus)}</td>
                 <td>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button className="icon-btn-minimal" title="Approve" style={{ color: '#10b981' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    </button>
-                    <button className="icon-btn-minimal" title="Reject" style={{ color: '#ef4444' }}>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                    {app.intakeStatus === 'PENDING' && (
+                      <button 
+                        className="primary-btn" 
+                        style={{ padding: '4px 12px', fontSize: '12px' }}
+                        onClick={() => navigate(`/intake/${app.patientId}`)}
+                      >
+                        Complete Intake
+                      </button>
+                    )}
+                    <button className="icon-btn-minimal" title="Details" onClick={() => navigate(`/doctor/patient/${app.patientId}`)}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
                     </button>
                   </div>
                 </td>

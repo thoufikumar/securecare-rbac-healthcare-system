@@ -1,6 +1,8 @@
 import React from 'react';
 
 const PatientInfoCard = ({ info }) => {
+  if (!info) return <div className="info-card" style={{ padding: '24px' }}>Loading info...</div>;
+  
   return (
     <div className="info-card" style={{ padding: '24px', height: '100%', display: 'flex', flexDirection: 'column', backgroundColor: 'white', borderRadius: '16px', boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)' }}>
       <h3 className="section-title-sm mb-6" style={{ fontSize: '16px', fontWeight: '700', color: '#1e293b' }}>Information:</h3>

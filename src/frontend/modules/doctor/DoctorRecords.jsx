@@ -22,7 +22,7 @@ const DoctorRecords = () => {
         const normalizedActivities = (activitiesData || []).map(a => ({
           id: a.id,
           action: a.action.replace(/_/g, ' '),
-          patient: a.resource.split('/').pop(),
+          patient: a.target?.patientId || 'N/A',
           time: a.timestamp ? new Date(a.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
           avatar: a.userId
         }));

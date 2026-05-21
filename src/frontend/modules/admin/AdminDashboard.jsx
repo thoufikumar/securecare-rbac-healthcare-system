@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, limit, query, orderBy } from "firebase/firestore";
 import { db } from "../../../backend/config/firebase";
+import SecurityInsightsPanel from "./components/SecurityInsightsPanel";
 
 const AdminDashboard = () => {
   const [stats, setStats] = useState({
@@ -44,69 +44,76 @@ const AdminDashboard = () => {
   }, []);
 
   return (
-    <div className="crm-view">
-      <h1 className="view-title">Dashboard</h1>
-
-      <div className="dashboard-metrics-grid">
-        <div className="card metric-card">
-          <h3>Total Users</h3>
-          <p className="metric-value">{stats.users}</p>
-        </div>
-        <div className="card metric-card">
-          <h3>Staff Doctors</h3>
-          <p className="metric-value">{stats.doctors}</p>
-        </div>
-        <div className="card metric-card">
-          <h3>Total Patients</h3>
-          <p className="metric-value">{stats.patients}</p>
-        </div>
-        <div className="card metric-card">
-          <h3>System Status</h3>
-          <p className="metric-value" style={{ color: '#10b981' }}>Healthy</p>
+    <div className="crm-view fade-in">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+        <h1 className="view-title" style={{ margin: 0 }}>Administrative Control</h1>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="badge badge-blue">System Active</div>
+          <div className="badge badge-green">Security Verified</div>
         </div>
       </div>
 
-      <h2 className="section-title">Recent Patients</h2>
-      <div className="card table-card">
-        <table className="crm-table">
-          <thead>
-            <tr>
-              <th>Patient Name</th>
-              <th>Status</th>
-              <th>Created At</th>
-              <th>Patient ID</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {recentPatients.length > 0 ? recentPatients.map(p => (
-              <tr key={p.id}>
-                <td>
-                  <div className="user-cell">
-                    <div className="avatar-small">{(p.fullName || p.firstName || "P").charAt(0)}</div>
-                    <span style={{ fontWeight: 500 }}>{p.fullName || `${p.firstName} ${p.lastName}`}</span>
-                  </div>
-                </td>
-                <td>
-                  <span className={`role-badge role-receptionist`}>
-                    Registered
-                  </span>
-                </td>
-                <td><span className="date-text">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A'}</span></td>
-                <td><span className="date-text">#{p.id.slice(-6)}</span></td>
-                <td>
-                  <Link to={`/doctor/patient/${p.id}`} className="btn-icon">View</Link>
-                </td>
-              </tr>
-            )) : (
-              <tr>
-                <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>
-                  {loading ? 'Fetching records...' : 'No patients registered yet.'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '32px' }}>
+        
+        <div>
+          <div className="dashboard-metrics-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '32px' }}>
+            <div className="card metric-card">
+              <h3>System Users</h3>
+              <p className="metric-value">{stats.users}</p>
+            </div>
+            <div className="card metric-card">
+              <h3>Medical Staff</h3>
+              <p className="metric-value">{stats.doctors}</p>
+            </div>
+            <div className="card metric-card">
+              <h3>Total Registered</h3>
+              <p className="metric-value">{stats.patients}</p>
+            </div>
+          </div>
+
+          <h2 className="section-title">Registration Queue (Non-Clinical)</h2>
+          <div className="card table-card">
+            <table className="crm-table">
+              <thead>
+                <tr>
+                  <th>Patient Name</th>
+                  <th>Created At</th>
+                  <th>Patient ID</th>
+                  <th>Compliance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentPatients.length > 0 ? recentPatients.map(p => (
+                  <tr key={p.id}>
+                    <td>
+                      <div className="user-cell">
+                        <div className="avatar-small">{(p.fullName || p.firstName || "P").charAt(0)}</div>
+                        <span style={{ fontWeight: 500 }}>{p.fullName || `${p.firstName} ${p.lastName}`}</span>
+                      </div>
+                    </td>
+                    <td><span className="date-text">{p.createdAt ? new Date(p.createdAt).toLocaleDateString() : 'N/A'}</span></td>
+                    <td><span className="date-text">#{p.id.slice(-6)}</span></td>
+                    <td>
+                      <span className="badge badge-green" style={{ fontSize: '10px' }}>ENCRYPTED</span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="4" style={{ textAlign: 'center', padding: '20px' }}>
+                      {loading ? 'Analyzing system state...' : 'No patient records found.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ marginTop: '16px', fontSize: '12px', color: '#94a3b8', fontStyle: 'italic' }}>
+            * Patient detail links are disabled for Admin roles to maintain clinical privacy. Check Audit Logs for access history.
+          </p>
+        </div>
+
+        <SecurityInsightsPanel />
+        
       </div>
     </div>
   );

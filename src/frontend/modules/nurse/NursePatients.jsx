@@ -1,66 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import NursePatientsTable from './components/NursePatientsTable';
+import React from 'react';
+import ShiftFilteredPatientList from './components/ShiftFilteredPatientList';
+import CarePlanTaskList from './components/CarePlanTaskList';
 import useAuth from '../../../backend/modules/auth/useAuth';
-import { getAllPatients } from '../../../backend/modules/patient/PatientService';
 
 const NursePatients = () => {
   const { getCurrentUser } = useAuth();
   const user = getCurrentUser();
-  const [patients, setPatients] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchPatients = async () => {
-      try {
-        const data = await getAllPatients();
-        setPatients(data);
-      } catch (error) {
-        console.error("Error fetching patients:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchPatients();
-  }, []);
-
-  const filteredPatients = patients.filter(p => {
-    const term = searchTerm.toLowerCase();
-    const fullName = `${p.firstName || p.fullName || ''} ${p.lastName || ''}`.toLowerCase();
-    return fullName.includes(term) || (p.email && p.email.toLowerCase().includes(term));
-  });
 
   return (
-    <div className="patients-manager-wrapper fade-in">
+    <div className="patients-manager-wrapper fade-in" style={{ padding: '24px' }}>
       {/* HEADER */}
-      <div className="patients-header" style={{ position: 'relative', justifyContent: 'center' }}>
-        <div className="header-title" style={{ position: 'absolute', left: '32px' }}>
-          <h2>Patient Monitoring</h2>
+      <div className="patients-header" style={{ marginBottom: '32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b' }}>Ward Monitoring</h2>
+          <p style={{ color: '#64748b', fontSize: '14px' }}>
+            Active Shift • {user?.wardId || "WARD_B"} • {new Date().toLocaleDateString()}
+          </p>
         </div>
-        <div className="header-actions">
-          <div className="search-input-wrapper custom-search" style={{ width: '1000px', padding: '8px 16px' }}>
-            <input 
-              type="text" 
-              placeholder="Search patients..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="record-search-input"
-              style={{ width: '100%', fontSize: '14.7px' }}
-            />
-            <span className="search-icon">🔍</span>
-          </div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <div className="badge badge-blue" style={{ padding: '8px 16px' }}>Shift ACTIVE</div>
         </div>
       </div>
 
-      {/* MAIN CONTENT / TABLE */}
-      {loading ? (
-        <div className="loading-state" style={{ marginTop: '50px' }}>
-          <div className="spinner"></div>
-          <p>Loading Monitoring Data...</p>
-        </div>
-      ) : (
-        <NursePatientsTable patients={filteredPatients} />
-      )}
+      {/* MAIN CONTENT GRID */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '24px' }}>
+        <ShiftFilteredPatientList />
+        <CarePlanTaskList />
+      </div>
+
+      <div style={{ marginTop: '24px', padding: '16px', background: '#f0f9ff', borderRadius: '12px', border: '1px solid #e0f2fe' }}>
+        <p style={{ fontSize: '13px', color: '#0369a1', margin: 0, fontWeight: '500' }}>
+          🛡️ <strong>Security Notice:</strong> You are currently restricted to viewing patients only within your assigned ward and active shift window. All access is logged.
+        </p>
+      </div>
     </div>
   );
 };

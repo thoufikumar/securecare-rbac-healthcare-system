@@ -4,13 +4,13 @@ import { updatePatient } from '../../../../backend/modules/patient/PatientServic
 const UpdatePatientModal = ({ isOpen, onClose, patient, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: patient.firstName || '',
-    lastName: patient.lastName || '',
-    age: patient.age || '',
-    gender: patient.gender || '',
-    contactNumber: patient.contactNumber || '',
-    address: patient.address || '',
-    fullName: patient.fullName || `${patient.firstName} ${patient.lastName}`
+    firstName: patient?.firstName || '',
+    lastName: patient?.lastName || '',
+    age: patient?.age || '',
+    gender: patient?.gender || '',
+    contactNumber: patient?.contactNumber || '',
+    address: patient?.address || '',
+    fullName: patient?.fullName || (patient ? `${patient.firstName} ${patient.lastName}` : '')
   });
 
   if (!isOpen) return null;

@@ -37,9 +37,9 @@ const AppointmentsList = ({ appointments }) => {
       <div className="list-items">
         {appointments.map(app => (
           <div key={app.id} className="list-item interactive-list-item" onClick={() => handleAppointmentClick(app)}>
-            <div className="item-avatar"><img src={app.avatar || `https://ui-avatars.com/api/?name=${app.patientName || app.fullName || 'P'}`} alt="avatar" /></div>
+            <div className="item-avatar"><img src={app.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(app.patientName || 'P')}&background=random&color=fff`} alt="avatar" /></div>
             <div className="item-details">
-              <h4>{app.patientName || app.fullName || "Unknown Patient"}</h4>
+              <h4>{app.patientName || "Unknown Patient"}</h4>
               <p>{app.type || "Medical Visit"}</p>
             </div>
             <div className="item-time">

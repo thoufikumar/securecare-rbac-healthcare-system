@@ -1,29 +1,37 @@
-// src/modules/security/encryption.js
-// AES encryption/decryption utilities using CryptoJS.
-// All sensitive patient data must pass through these functions before Firestore writes.
-
 import CryptoJS from "crypto-js";
 
-// IMPORTANT: Move this key to environment variables in production (.env → VITE_ENCRYPTION_KEY)
-const SECRET_KEY = import.meta.env.VITE_ENCRYPTION_KEY || "securecare-default-key-CHANGE-IN-PROD";
+// Master key from environment
+const MASTER_KEY = import.meta.env.VITE_ENCRYPTION_KEY || "securecare-master-key-DEFAULT";
 
 /**
- * Encrypts a plaintext string using AES.
- * @param {string} plaintext - Data to encrypt
- * @returns {string} Encrypted ciphertext string
+ * Derives a unique patient key using PBKDF2.
+ * @param {string} patientId - Unique patient identifier
  */
-export const encryptData = (plaintext) => {
-  if (!plaintext) return "";
-  return CryptoJS.AES.encrypt(plaintext, SECRET_KEY).toString();
+export const derivePatientKey = (patientId) => {
+  if (!patientId) throw new Error("Security Error: Patient ID required for key derivation.");
+  
+  // Use patientId as salt for derivation
+  return CryptoJS.PBKDF2(MASTER_KEY, patientId, {
+    keySize: 256 / 32,
+    iterations: 1000
+  }).toString();
 };
 
 /**
- * Decrypts an AES-encrypted string.
- * @param {string} ciphertext - Encrypted data string
- * @returns {string} Decrypted plaintext
+ * Encrypts data using a patient-specific derived key.
  */
-export const decryptData = (ciphertext) => {
+export const encryptData = (plaintext, patientId) => {
+  if (!plaintext) return "";
+  const key = derivePatientKey(patientId);
+  return CryptoJS.AES.encrypt(plaintext, key).toString();
+};
+
+/**
+ * Decrypts data using a patient-specific derived key.
+ */
+export const decryptData = (ciphertext, patientId) => {
   if (!ciphertext) return "";
-  const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
+  const key = derivePatientKey(patientId);
+  const bytes = CryptoJS.AES.decrypt(ciphertext, key);
   return bytes.toString(CryptoJS.enc.Utf8);
 };

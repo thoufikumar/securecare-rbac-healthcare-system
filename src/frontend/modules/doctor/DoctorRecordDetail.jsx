@@ -3,11 +3,13 @@ import { useNavigate, useParams } from 'react-router-dom';
 import useAuth from '../../../backend/modules/auth/useAuth';
 import PatientProfileCard from './components/PatientProfileCard';
 import PatientInfoCard from './components/PatientInfoCard';
-import VitalStats from './components/VitalStats';
 import TestReports from './components/TestReports';
 import PrescriptionSection from './components/PrescriptionSection';
 import AddPrescriptionModal from './components/AddPrescriptionModal';
-import UpdateVitalsModal from './components/UpdateVitalsModal';
+// 🛡️ SECURITY & UI COMPONENTS
+import SecureContainer from '../../components/security/SecureContainer';
+import WatermarkOverlay from '../../components/security/WatermarkOverlay';
+import AccessReasonModal from '../../components/security/AccessReasonModal';
 import { getPatient } from '../../../backend/modules/patient/PatientService';
 
 const DoctorRecordDetail = () => {
@@ -18,33 +20,67 @@ const DoctorRecordDetail = () => {
   const userRole = user?.role || 'doctor';
 
   const [showModal, setShowModal] = useState(false);
-  const [showVitalsModal, setShowVitalsModal] = useState(false);
   const [patient, setPatient] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // 🔐 Security State
+  const [isAccessAuthorized, setIsAccessAuthorized] = useState(false);
+  const [isReasonModalOpen, setIsReasonModalOpen] = useState(true);
+  const [confirmedReason, setConfirmedReason] = useState(null);
 
-  const fetchPatient = async () => {
+  const fetchPatient = async (reason = null) => {
+    if (!id || !user) return;
+    
+    // Determine the reason to use
+    const effectiveReason = reason || confirmedReason || (user.role === 'admin' ? "Admin System Review" : null);
+
     setLoading(true);
     try {
-      const data = await getPatient(id);
+      const data = await getPatient(id, user, effectiveReason ? { action: "READ", reason: effectiveReason } : {});
       setPatient(data);
+      setIsAccessAuthorized(true);
+      if (reason) setConfirmedReason(reason);
     } catch (error) {
       console.error("Error fetching patient:", error);
+      alert("Access Denied: " + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPatient();
-  }, [id]);
+    if (user?.role === 'receptionist' || user?.role === 'admin') {
+      setIsReasonModalOpen(false);
+      fetchPatient();
+    }
+  }, [id, user]);
 
-  if (loading) return <div className="p-10 text-center">Loading Patient Details...</div>;
-  if (!patient) return <div className="p-10 text-center">Patient not found</div>;
+  const handleConfirmAccess = (reason) => {
+    setIsReasonModalOpen(false);
+    fetchPatient(reason);
+  };
+
+  if (loading && !isReasonModalOpen) return <div className="p-10 text-center">Verifying Security Credentials...</div>;
+  
+  if (!patient && !loading && !isReasonModalOpen) {
+    return (
+      <div className="p-10 text-center">
+        <h2>Patient not found or Access restricted</h2>
+        <button onClick={() => navigate(-1)} className="btn-primary mt-4">Go Back</button>
+      </div>
+    );
+  }
 
   const rolePath = userRole === "nurse" ? "/nurse" : "/doctor";
 
   return (
     <div className="record-container fade-in">
+      <AccessReasonModal 
+        isOpen={isReasonModalOpen} 
+        onClose={() => navigate(-1)} 
+        onConfirm={handleConfirmAccess} 
+      />
+
       <div className="record-content-area">
         
         {/* ── TOP BAR ── */}
@@ -54,15 +90,7 @@ const DoctorRecordDetail = () => {
             Back to Records
           </button>
           <div className="top-bar-right">
-            <button className="icon-btn-minimal">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
-            </button>
-            <div className="doctor-profile-mini">
-              <img src={`https://ui-avatars.com/api/?name=${userRole === 'nurse' ? 'Nurse' : 'Doctor'}&background=${userRole === 'nurse' ? 'ec4899' : '2563eb'}&color=fff`} alt="User" />
-              <div className="doc-info-mini">
-                <span className="doc-name-mini">{userRole === 'nurse' ? 'Nurse' : 'Doctor'} ▾</span>
-              </div>
-            </div>
+            {/* User profile section removed */}
           </div>
         </div>
 
@@ -70,46 +98,38 @@ const DoctorRecordDetail = () => {
           <h1 className="page-title-lg">Current Appointment Details</h1>
         </div>
 
-        {/* ── 2-COLUMN MAIN LAYOUT ── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px', alignItems: 'start' }}>
+        <SecureContainer secure={userRole !== 'admin'}>
+          <WatermarkOverlay patientId={id} />
           
-          {/* LEFT COLUMN: Demographics */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <PatientProfileCard patient={patient} variant="appointment" />
-            <PatientInfoCard info={patient} />
-          </div>
+          {/* ── 2-COLUMN MAIN LAYOUT ── */}
+          <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: '24px', alignItems: 'start' }}>
+            
+            {/* LEFT COLUMN: Demographics */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <PatientProfileCard patient={patient} variant="appointment" />
+              <PatientInfoCard info={patient} />
+            </div>
 
-          {/* RIGHT COLUMN: Clinical Data */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <VitalStats 
-              vitals={patient.vitals} 
-              onUpdate={() => setShowVitalsModal(true)} 
-            />
-            <TestReports />
-            <PrescriptionSection 
-              prescriptions={patient.prescriptions || []} 
-              onAdd={() => setShowModal(true)} 
-              userRole={userRole}
-            />
+            {/* RIGHT COLUMN: Clinical Data */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <TestReports />
+              <PrescriptionSection 
+                prescriptions={patient?.prescriptions || []} 
+                onAdd={() => setShowModal(true)} 
+                userRole={userRole}
+              />
+            </div>
           </div>
-        </div>
+        </SecureContainer>
 
         {userRole === 'doctor' && (
           <AddPrescriptionModal 
             isOpen={showModal}
             onClose={() => setShowModal(false)}
             patientId={id}
-            onSuccess={fetchPatient}
+            onSuccess={() => fetchPatient()}
           />
         )}
-
-        <UpdateVitalsModal 
-          isOpen={showVitalsModal}
-          onClose={() => setShowVitalsModal(false)}
-          patientId={id}
-          initialVitals={patient.vitals}
-          onSuccess={fetchPatient}
-        />
       </div>
     </div>
   );

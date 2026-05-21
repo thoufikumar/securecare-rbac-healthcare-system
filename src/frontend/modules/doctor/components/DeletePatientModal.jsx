@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deletePatient } from '../../../../backend/modules/patient/PatientService';
 
-const DeletePatientModal = ({ isOpen, onClose, patientId, patientName }) => {
+const DeletePatientModal = ({ isOpen, onClose, patientId, patientName, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -13,7 +13,8 @@ const DeletePatientModal = ({ isOpen, onClose, patientId, patientName }) => {
     try {
       await deletePatient(patientId);
       alert("Patient deleted successfully");
-      navigate('/doctor/patients');
+      if (onSuccess) onSuccess();
+      onClose();
     } catch (err) {
       alert("Failed to delete patient: " + err.message);
     } finally {

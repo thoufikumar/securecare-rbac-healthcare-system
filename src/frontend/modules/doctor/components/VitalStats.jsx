@@ -1,6 +1,8 @@
 import React from 'react';
 
 const VitalStats = ({ vitals, onUpdate }) => {
+  if (!vitals) return <div className="prescription-section" style={{ padding: '24px' }}>Loading vitals...</div>;
+
   return (
     <div className="prescription-section" style={{ padding: '24px' }}>
       <div className="flex-between mb-6" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>

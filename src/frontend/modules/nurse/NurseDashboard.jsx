@@ -44,7 +44,7 @@ const NurseDashboard = () => {
         const normalizedActivities = (activities || []).map(a => ({
           id: a.id,
           action: a.action.replace(/_/g, ' '),
-          patientName: a.resource?.split('/').pop() || 'System',
+          patientName: a.target?.patientId || 'System',
           time: a.timestamp ? new Date(a.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
         }));
 

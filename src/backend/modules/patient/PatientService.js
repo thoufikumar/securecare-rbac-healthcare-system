@@ -12,42 +12,42 @@ import {
   deleteDoc,
   query,
   where,
+  onSnapshot,
+  orderBy,
+  limit
 } from "firebase/firestore";
 import { db } from "../../config/firebase";
-import { encryptData, decryptData } from "../../security/encryption";
 import { createPatientModel } from "./PatientModel";
 import { logEvent } from "../audit/AuditService";
+import { transition } from "../state/StateService";
+import { validateRole } from "../../security/ValidationService";
+import { secureWrapper } from "../../security/SecureWrapper";
 
 const COLLECTION = "patients";
 
 /**
- * Add a new patient record to Firestore (sensitive fields encrypted).
- * RBAC: Only Receptionists and Admins can create patients.
+ * Add a new patient record (Basic Info only).
+ * Automatically transitions state to REGISTERED.
  */
 export const addPatient = async (patientData, user) => {
-  if (!user || (user.role !== "receptionist" && user.role !== "admin")) {
-    throw new Error("Unauthorized: Only receptionists and admins can create patients");
-  }
+  validateRole(user, ["receptionist", "admin"]);
 
   const patient = createPatientModel({
     ...patientData,
     createdBy: user.uid
   });
 
-  const encrypted = {
-    ...patient,
-    medicalHistory: encryptData(JSON.stringify(patient.medicalHistory)),
-    prescriptions: encryptData(JSON.stringify(patient.prescriptions)),
-    vitals: encryptData(JSON.stringify(patient.vitals)),
-    contactNumber: encryptData(patient.contactNumber),
-    address: encryptData(patient.address),
-  };
-
-  const docRef = await addDoc(collection(db, COLLECTION), encrypted);
+  // 1. Create Patient Document
+  const docRef = await addDoc(collection(db, COLLECTION), patient);
   
-  // 4. Log Event
+  // 2. Initialize Patient State to REGISTERED
+  await transition(docRef.id, "REGISTERED", user, {
+    metadata: "Initial registration"
+  });
+
+  // 3. Log Audit Event
   await logEvent({
-    action: "PATIENT_CREATED",
+    action: "PATIENT_REGISTERED",
     performedBy: { userId: user.uid, role: user.role, email: user.email },
     target: { patientId: docRef.id }
   });
@@ -56,229 +56,100 @@ export const addPatient = async (patientData, user) => {
 };
 
 /**
- * Fetch a single patient by document ID and decrypt sensitive fields.
+ * Fetch a patient and normalize structure for UI.
  */
-export const getPatient = async (patientId) => {
+const _getPatient = async (patientId) => {
   const docSnap = await getDoc(doc(db, COLLECTION, patientId));
   if (!docSnap.exists()) return null;
+  
   const data = docSnap.data();
+  
+  // Fetch Clinical Records (Prescriptions, Vitals, etc.)
+  const recordsQuery = query(
+    collection(db, "clinicalRecords"),
+    where("patientId", "==", patientId)
+  );
+  const recordsSnap = await getDocs(recordsQuery);
+  const allRecords = recordsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-  // Helper to safely decrypt and parse
-  const safeDecrypt = (ciphertext, fallback, isJson = true) => {
-    if (!ciphertext) return fallback;
-    try {
-      const decrypted = decryptData(ciphertext);
-      if (!decrypted) return fallback;
-      return isJson ? JSON.parse(decrypted) : decrypted;
-    } catch (e) {
-      console.warn("Decryption failed for field", e);
-      return fallback;
-    }
-  };
+  const prescriptions = allRecords
+    .filter(r => r.type === "PRESCRIPTION")
+    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
 
+  const vitals = allRecords
+    .filter(r => r.type === "VITALS")
+    .sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp))[0]?.vitals || null;
+
+  // Flattening for UI compatibility during migration
   return {
-    ...data,
     id: docSnap.id,
-    medicalHistory: safeDecrypt(data.medicalHistory, []),
-    prescriptions: safeDecrypt(data.prescriptions, []),
-    vitals: safeDecrypt(data.vitals, {}),
-    contactNumber: safeDecrypt(data.contactNumber, data.contactNumber, false),
-    address: safeDecrypt(data.address, data.address, false),
+    ...data.basicInfo,
+    fullName: data.basicInfo?.fullName || `${data.basicInfo?.firstName || ''} ${data.basicInfo?.lastName || ''}`.trim(),
+    ...data.contactInfo,
+    ...data.emergencyContact,
+    prescriptions,
+    vitals,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt
   };
 };
 
 /**
- * Add a prescription to a patient (appends to encrypted prescriptions array).
- * RBAC: Only Doctors can add prescriptions.
+ * Fetch all patients for a given doctor (Context: patientState).
  */
-export const addPrescriptionToPatient = async (patientId, prescriptionData, user) => {
-  if (user.role !== "doctor") {
-    throw new Error("Unauthorized: Only doctors can add prescriptions");
-  }
-
-  try {
-    const patientRef = doc(db, COLLECTION, patientId);
-    const docSnap = await getDoc(patientRef);
-
-    if (!docSnap.exists()) {
-      throw new Error("Patient not found");
-    }
-
-    const data = docSnap.data();
-
-    // 🔓 Decrypt existing prescriptions
-    let prescriptions = [];
-    if (data.prescriptions) {
-      try {
-        const decrypted = decryptData(data.prescriptions);
-        prescriptions = decrypted ? JSON.parse(decrypted) : [];
-      } catch (e) {
-        console.warn("Failed to parse prescriptions, initializing new array", e);
-        prescriptions = [];
-      }
-    }
-
-    // 🆕 New prescription object
-    const newPrescription = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
-      ...prescriptionData,
-      prescribedBy: user.uid,
-      createdAt: new Date().toISOString()
-    };
-
-    // ➕ Append to local state
-    prescriptions.push(newPrescription);
-
-    // 🔐 Encrypt the full collection again
-    const encryptedPrescriptions = encryptData(JSON.stringify(prescriptions));
-
-    // 💾 Update Firestore
-    await updateDoc(patientRef, {
-      prescriptions: encryptedPrescriptions,
-      updatedAt: new Date().toISOString()
-    });
-
-    return newPrescription;
-  } catch (error) {
-    console.error("Error adding prescription:", error);
-    throw error;
-  }
-};
-
-/**
- * Update patient vital signs.
- * RBAC: Both Doctors and Nurses can update vitals.
- */
-export const updatePatientVitals = async (patientId, vitals, user) => {
-  if (!["doctor", "nurse"].includes(user.role)) {
-    throw new Error("Unauthorized: Only doctors and nurses can update vitals");
-  }
-
-  try {
-    const patientRef = doc(db, COLLECTION, patientId);
-    await updateDoc(patientRef, {
-      vitals: {
-        ...vitals,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.uid
-      },
-      updatedAt: new Date().toISOString()
-    });
-    return { success: true };
-  } catch (error) {
-    console.error("Error updating vitals:", error);
-    throw error;
-  }
-};
-
-/**
- * Fetch all patients for a given doctor.
- */
-export const getPatientsByDoctor = async (doctorId) => {
+const _getPatientsByDoctor = async (doctorId, user, context) => {
   const q = query(
-    collection(db, COLLECTION),
+    collection(db, "patientState"),
     where("assignedDoctorId", "==", doctorId)
   );
   const snapshot = await getDocs(q);
-  return snapshot.docs.map((d) => ({ ...d.data(), id: d.id }));
+  const patientIds = snapshot.docs.map(d => d.id);
+  
+  if (patientIds.length === 0) return [];
+
+  // Fetch actual patient docs
+  const patients = await Promise.all(patientIds.map(id => _getPatient(id)));
+  return patients.filter(p => p !== null);
 };
 
-/**
- * Fetch all patients from Firestore.
- */
-export const getAllPatients = async () => {
-  try {
-    const snapshot = await getDocs(collection(db, COLLECTION));
-    return snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-  } catch (error) {
-    console.error("Error getting all patients:", error);
-    throw error;
-  }
-};
+// EXPORT WRAPPED SERVICES
+export const getPatient = secureWrapper(_getPatient, { allowedRoles: ["receptionist", "doctor", "nurse", "admin"], isClinical: true });
+export const getPatientsByDoctor = secureWrapper(_getPatientsByDoctor, { allowedRoles: ["doctor", "admin"], isClinical: true });
 
 /**
- * Fetch appointments based on role.
- */
-export const getAppointmentsByRole = async (role, userId) => {
-  try {
-    let q;
-    if (role === "doctor") {
-      q = query(
-        collection(db, "appointments"),
-        where("doctorId", "==", userId)
-      );
-    } else {
-      // For nurses/admins, show all for now
-      q = query(collection(db, "appointments"));
-    }
-    
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-  } catch (error) {
-    console.error("Error fetching appointments:", error);
-    return [];
-  }
-};
-
-/**
- * Fetch recent audit logs for a user.
- */
-export const getRecentActivities = async (userId) => {
-  try {
-    const q = query(
-      collection(db, "auditLogs"),
-      where("userId", "==", userId)
-      // Note: Ordering requires composite index in Firestore if combined with where.
-      // I'll keep it simple for now to avoid index requirements during demo.
-    );
-    const snapshot = await getDocs(q);
-    const logs = snapshot.docs.map(doc => ({
-      ...doc.data(),
-      id: doc.id
-    }));
-    
-    // Sort manually if no index
-    return logs.sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds).slice(0, 5);
-  } catch (error) {
-    console.error("Error fetching activities:", error);
-    return [];
-  }
-};
-
-/**
- * Update an existing patient record.
+ * Update an existing patient record (Basic info only).
  */
 export const updatePatient = async (patientId, updatedData) => {
   const patientRef = doc(db, COLLECTION, patientId);
   
-  const encryptedData = { ...updatedData };
+  // Structure data into nested objects if they are provided flat
+  const updatePayload = {
+    updatedAt: new Date().toISOString()
+  };
 
-  if (updatedData.medicalHistory) {
-    encryptedData.medicalHistory = encryptData(JSON.stringify(updatedData.medicalHistory));
-  }
-  if (updatedData.prescriptions) {
-    encryptedData.prescriptions = encryptData(JSON.stringify(updatedData.prescriptions));
-  }
-  if (updatedData.vitals) {
-    encryptedData.vitals = encryptData(JSON.stringify(updatedData.vitals));
-  }
-  if (updatedData.contactNumber) {
-    encryptedData.contactNumber = encryptData(updatedData.contactNumber);
-  }
-  if (updatedData.address) {
-    encryptedData.address = encryptData(updatedData.address);
+  if (updatedData.firstName || updatedData.lastName || updatedData.age || updatedData.gender) {
+    updatePayload.basicInfo = {
+      firstName: updatedData.firstName,
+      lastName: updatedData.lastName,
+      fullName: `${updatedData.firstName || ''} ${updatedData.lastName || ''}`.trim(),
+      age: updatedData.age,
+      gender: updatedData.gender,
+      bloodGroup: updatedData.bloodGroup,
+      dob: updatedData.dob
+    };
   }
 
-  await updateDoc(patientRef, { 
-    ...encryptedData, 
-    updatedAt: new Date().toISOString() 
-  });
+  if (updatedData.phoneNumber || updatedData.email || updatedData.address) {
+    updatePayload.contactInfo = {
+      phoneNumber: updatedData.phoneNumber || updatedData.contactNumber,
+      email: updatedData.email,
+      address: updatedData.address,
+      city: updatedData.city,
+      zipCode: updatedData.zipCode
+    };
+  }
+
+  await updateDoc(patientRef, updatePayload);
 };
 
 /**
@@ -287,116 +158,211 @@ export const updatePatient = async (patientId, updatedData) => {
 export const deletePatient = async (patientId) => {
   await deleteDoc(doc(db, COLLECTION, patientId));
 };
+
 /**
- * Assign a nurse to a patient and attach a care plan.
- * RBAC: Only Doctors can assign nurses.
+ * Fetch recent activities (audit logs) for a specific user.
  */
-export const assignNurseToPatient = async (patientId, nurseId, tasks, user, appointmentId = null) => {
-  if (user.role !== "doctor") {
-    throw new Error("Unauthorized: Only doctors can assign nurses to patients");
-  }
-
+export const getRecentActivities = async (userId) => {
   try {
-    const patientRef = doc(db, COLLECTION, patientId);
-    await updateDoc(patientRef, {
-      assignedNurseId: nurseId,
-      carePlan: {
-        tasks: tasks.map(t => ({
-          ...t,
-          id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 11),
-          status: "pending",
-          createdAt: new Date().toISOString()
-        })),
-        appointmentId,
-        updatedAt: new Date().toISOString(),
-        updatedBy: user.uid
-      },
-      updatedAt: new Date().toISOString()
-    });
-
-    await logEvent({
-      action: "NURSE_ASSIGNED",
-      performedBy: { userId: user.uid, role: user.role, email: user.email },
-      target: { patientId, nurseId, appointmentId }
-    });
-
-    return { success: true };
+    // Query with single field filter to avoid index requirement
+    const q = query(
+      collection(db, "auditLogs"),
+      where("performedBy.userId", "==", userId)
+    );
+    const snapshot = await getDocs(q);
+    const activities = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    
+    // Sort and limit in memory
+    return activities
+      .sort((a, b) => {
+        const timeA = a.timestamp?.seconds || 0;
+        const timeB = b.timestamp?.seconds || 0;
+        return timeB - timeA;
+      })
+      .slice(0, 10);
   } catch (error) {
-    console.error("Error assigning nurse:", error);
-    throw error;
+    console.error("Error fetching recent activities:", error);
+    return [];
   }
 };
 
 /**
- * Subscribe to patients assigned to a specific nurse in real-time.
+ * Fetch all patients from Firestore.
+ */
+export const getAllPatients = async () => {
+  try {
+    const snapshot = await getDocs(collection(db, COLLECTION));
+    return snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data.basicInfo,
+        fullName: data.basicInfo?.fullName || `${data.basicInfo?.firstName || ''} ${data.basicInfo?.lastName || ''}`.trim(),
+        ...data.contactInfo
+      };
+    });
+  } catch (error) {
+    console.error("Error getting all patients:", error);
+    throw error;
+  }
+};
+/**
+ * Assign a nurse to a patient and create a care plan.
+ */
+export const assignNurseToPatient = async (patientId, nurseId, tasks, user, appointmentId) => {
+  const stateRef = doc(db, "patientState", patientId);
+  
+  // 1. Update Patient State with Assigned Nurse
+  await updateDoc(stateRef, {
+    assignedNurseId: nurseId,
+    stage: "ADMITTED", // Ensure patient is admitted if a nurse is assigned
+    updatedAt: new Date().toISOString()
+  });
+
+  // 2. Create Care Plan in clinicalRecords (Append-only)
+  const recordRef = await addDoc(collection(db, "clinicalRecords"), {
+    patientId,
+    type: "CARE_PLAN",
+    nurseId,
+    tasks: tasks.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9), status: "pending" })),
+    appointmentId,
+    createdBy: user.uid,
+    timestamp: new Date().toISOString()
+  });
+
+  // 3. Log Audit Event
+  await logEvent({
+    action: "NURSE_ASSIGNED",
+    performedBy: { userId: user.uid, role: user.role, email: user.email },
+    target: { patientId, nurseId }
+  });
+
+  return recordRef.id;
+};
+
+/**
+ * Subscribe to patients for a specific nurse (Ward/Shift context).
  */
 export const subscribeToPatientsByNurse = (nurseId, callback) => {
+  // Simplify outer query to avoid potential index issues
   const q = query(
-    collection(db, COLLECTION),
+    collection(db, "patientState"),
     where("assignedNurseId", "==", nurseId)
   );
-  return onSnapshot(q, (snapshot) => {
-    const patients = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-    callback(patients);
+
+  return onSnapshot(q, async (snapshot) => {
+    // Filter by stage in memory
+    const patientIds = snapshot.docs
+      .filter(d => ["ADMITTED", "ICU"].includes(d.data().stage))
+      .map(d => d.id);
+
+    if (patientIds.length === 0) {
+      callback([]);
+      return;
+    }
+
+    // Fetch actual patient data + their latest care plan
+    const patients = await Promise.all(patientIds.map(async (id) => {
+      const p = await _getPatient(id);
+      
+      // Fetch care plans and filter/sort in memory
+      const cpQuery = query(
+        collection(db, "clinicalRecords"),
+        where("patientId", "==", id)
+      );
+      const cpSnap = await getDocs(cpQuery);
+      
+      const carePlan = cpSnap.docs
+        .map(d => d.data())
+        .filter(d => d.type === "CARE_PLAN")
+        .sort((a, b) => {
+          const timeA = new Date(a.timestamp || 0).getTime();
+          const timeB = new Date(b.timestamp || 0).getTime();
+          return timeB - timeA;
+        })[0] || null;
+
+      return { ...p, carePlan };
+    }));
+
+    callback(patients.filter(p => p !== null));
   });
 };
 
 /**
- * Fetch all patients assigned to a specific nurse.
+ * Update the status of a task in a patient's care plan.
  */
-export const getPatientsByNurse = async (nurseId) => {
-  try {
-    const q = query(
-      collection(db, COLLECTION),
-      where("assignedNurseId", "==", nurseId)
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-  } catch (error) {
-    console.error("Error fetching patients by nurse:", error);
-    throw error;
-  }
+export const updateCarePlanTaskStatus = async (patientId, taskId, newStatus, user) => {
+  // Since clinicalRecords are append-only, we should ideally log a completion record.
+  // For simplicity in the current dashboard, we'll find the latest care plan and update it.
+  const q = query(
+    collection(db, "clinicalRecords"),
+    where("patientId", "==", patientId),
+    where("type", "==", "CARE_PLAN"),
+    orderBy("timestamp", "desc"),
+    limit(1)
+  );
+  const snapshot = await getDocs(q);
+  
+  if (snapshot.empty) throw new Error("Care plan not found");
+  
+  const recordDoc = snapshot.docs[0];
+  const data = recordDoc.data();
+  const updatedTasks = data.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+  
+  await updateDoc(doc(db, "clinicalRecords", recordDoc.id), {
+    tasks: updatedTasks,
+    updatedAt: new Date().toISOString()
+  });
+
+  // Log Audit Event
+  await logEvent({
+    action: `TASK_${newStatus.toUpperCase()}`,
+    performedBy: { userId: user.uid, role: user.role, email: user.email },
+    target: { patientId },
+    metadata: { taskId }
+  });
 };
 
 /**
- * Update the status of a specific task in a patient's care plan.
- * RBAC: Nurses can update task status.
+ * Add a prescription to a patient (Clinical Record).
  */
-export const updateCarePlanTaskStatus = async (patientId, taskId, status, user) => {
-  if (user.role !== "nurse" && user.role !== "doctor") {
-    throw new Error("Unauthorized: Role must be nurse or doctor");
-  }
+export const addPrescriptionToPatient = async (patientId, prescriptionData, user) => {
+  const recordRef = await addDoc(collection(db, "clinicalRecords"), {
+    patientId,
+    type: "PRESCRIPTION",
+    ...prescriptionData,
+    createdBy: typeof user === 'string' ? user : user.uid,
+    timestamp: new Date().toISOString()
+  });
 
-  try {
-    const patientRef = doc(db, COLLECTION, patientId);
-    const docSnap = await getDoc(patientRef);
-    if (!docSnap.exists()) throw new Error("Patient not found");
+  // Log Audit Event
+  await logEvent({
+    action: "PRESCRIPTION_ADDED",
+    performedBy: typeof user === 'string' ? { userId: user } : { userId: user.uid, role: user.role },
+    target: { patientId }
+  });
 
-    const data = docSnap.data();
-    const tasks = data.carePlan?.tasks || [];
-    const taskIndex = tasks.findIndex(t => t.id === taskId);
+  return recordRef.id;
+};
 
-    if (taskIndex === -1) throw new Error("Task not found");
+/**
+ * Update patient vitals (Clinical Record).
+ */
+export const updatePatientVitals = async (patientId, vitalsData, user) => {
+  const recordRef = await addDoc(collection(db, "clinicalRecords"), {
+    patientId,
+    type: "VITALS",
+    vitals: vitalsData,
+    createdBy: user?.uid || "unknown",
+    timestamp: new Date().toISOString()
+  });
 
-    tasks[taskIndex].status = status;
-    tasks[taskIndex].completedAt = status === "completed" ? new Date().toISOString() : null;
-    tasks[taskIndex].completedBy = user.uid;
+  // Log Audit Event
+  await logEvent({
+    action: "VITALS_UPDATED",
+    performedBy: { userId: user?.uid || "unknown", role: user?.role || "nurse" },
+    target: { patientId }
+  });
 
-    await updateDoc(patientRef, {
-      "carePlan.tasks": tasks,
-      updatedAt: new Date().toISOString()
-    });
-
-    await logEvent({
-      action: "TASK_COMPLETED",
-      performedBy: { userId: user.uid, role: user.role, email: user.email },
-      target: { patientId },
-      metadata: { taskDetails: `TaskId: ${taskId}, Status: ${status}` }
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error("Error updating task status:", error);
-    throw error;
-  }
+  return recordRef.id;
 };
